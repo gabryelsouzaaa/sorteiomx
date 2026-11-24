@@ -134,9 +134,8 @@ function paymentTab(tab, charge) {
 }
 
 function openPaymentTab() {
-  const tab = window.open('', '_blank');
+  const tab = window.open('about:blank', '_blank');
   if (!tab) return null;
-  tab.opener = null;
   const page = tab.document;
   page.documentElement.lang = 'es-MX';
   page.title = 'Pago SPEI | Raspaditos';
@@ -155,6 +154,10 @@ function attach(form, output, kind, option, onPaid) {
   let charge;
   let details = '';
   let timer;
+  let paymentWindow;
+  button.addEventListener('click', () => {
+    if (!charge && form.checkValidity()) paymentWindow = openPaymentTab();
+  });
 
   async function check() {
     clearTimeout(timer);
@@ -177,11 +180,37 @@ function attach(form, output, kind, option, onPaid) {
   form.onsubmit = async event => {
     event.preventDefault();
     if (charge) return check();
-    const tab = openPaymentTab();
+    const tab = paymentWindow ?? openPaymentTab();
+    paymentWindow = null;
     button.disabled = true;
     try {
       charge = await request({ action: 'create', kind, option: option(), name: form.elements.name.value, email: form.elements.email.value });
-      if (tab && !tab.closed) paymentTab(tab, charge);
+      if (tab && !tab.closed) {
+        paymentTab(tab, charge);
+        tab.focus();
+      } else {
+        const dialog = document.createElement('dialog');
+        const close = document.createElement('button');
+        close.textContent = 'Volver al checkout';
+        close.onclick = () => dialog.close();
+        const clabe = document.createElement('input');
+        clabe.value = charge.clabe;
+        clabe.readOnly = true;
+        clabe.setAttribute('aria-label', 'CLABE');
+        const copy = document.createElement('button');
+        copy.textContent = 'Copiar CLABE';
+        copy.onclick = async () => {
+          clabe.select();
+          try { await navigator.clipboard.writeText(clabe.value); copy.textContent = 'Copiado'; }
+          catch { copy.textContent = 'Copia el texto seleccionado'; }
+        };
+        const heading = document.createElement('h2');
+        heading.textContent = 'Transferencia SPEI · MXN ' + charge.amount;
+        dialog.append(heading, clabe, copy, close);
+        document.body.append(dialog);
+        dialog.addEventListener('close', () => dialog.remove(), { once: true });
+        dialog.showModal();
+      }
       details = ['Importe: $' + charge.amount + ' MXN', 'CLABE: ' + charge.clabe,
         charge.bank && 'Banco: ' + charge.bank, charge.beneficiary && 'Beneficiario: ' + charge.beneficiary,
         charge.reference && 'Referencia: ' + charge.reference].filter(Boolean).join(' · ');
