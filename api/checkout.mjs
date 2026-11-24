@@ -1,3 +1,4 @@
+import { saveOrder } from '../lib/orders.mjs';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createCharge, confirmCharge, quote } from '../lib/xpag.mjs';
 
@@ -52,6 +53,13 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Revisa los datos del pedido.' });
     }
     const charge = await createCharge({ kind, option, name, email });
+    const fields = value => typeof value === 'string' ? value.trim().slice(0, 400) : '';
+    try {
+      await saveOrder(charge, { kind, option, name, email, phone: fields(body.phone).slice(0, 32),
+        address: kind === 'shipping' ? fields(body.address) : '' });
+    } catch (error) {
+      console.error('Order storage failed', charge.externalId, error.name);
+    }
     const { transactionId, amount, currency } = charge;
     const token = seal({ transactionId, amount, currency, kind, option });
     return res.json({ ...charge, token });
