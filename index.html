@@ -98,6 +98,58 @@ async function request(body) {
   return data;
 }
 
+function paymentTab(tab, charge) {
+  const page = tab.document;
+  page.body.innerHTML = '<main><small>RASPADITOS · SPEI</small><h1>Completa tu transferencia</h1><p id="amount"></p><dl></dl><p>Luego de transferir, vuelve a la pestaña de Raspaditos para consultar la confirmación.</p><button id="back">Volver a Raspaditos</button></main>';
+  page.querySelector('#amount').textContent = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(charge.amount) + ' MXN';
+  const list = page.querySelector('dl');
+  for (const [label, value, copy] of [['CLABE', charge.clabe, true], ['Banco', charge.bank], ['Beneficiario', charge.beneficiary], ['Referencia', charge.reference, true]]) {
+    if (!value) continue;
+    const title = page.createElement('dt');
+    const row = page.createElement('dd');
+    const field = page.createElement('input');
+    title.textContent = label;
+    field.value = value;
+    field.readOnly = true;
+    field.setAttribute('aria-label', label);
+    field.onclick = () => field.select();
+    row.append(field);
+    if (copy) {
+      const button = page.createElement('button');
+      button.textContent = 'Copiar ' + label;
+      button.onclick = async () => {
+        field.select();
+        try {
+          await tab.navigator.clipboard.writeText(field.value);
+          button.textContent = 'Copiado';
+        } catch {
+          button.textContent = page.execCommand('copy') ? 'Copiado' : 'Copia el texto seleccionado';
+        }
+      };
+      row.append(button);
+    }
+    list.append(title, row);
+  }
+  page.querySelector('#back').onclick = () => tab.close();
+}
+
+function openPaymentTab() {
+  const tab = window.open('', '_blank');
+  if (!tab) return null;
+  tab.opener = null;
+  const page = tab.document;
+  page.documentElement.lang = 'es-MX';
+  page.title = 'Pago SPEI | Raspaditos';
+  const viewport = page.createElement('meta');
+  viewport.name = 'viewport';
+  viewport.content = 'width=device-width, initial-scale=1';
+  const style = page.createElement('style');
+  style.textContent = ' *{box-sizing:border-box} body{margin:0;min-height:100vh;padding:32px 16px;display:grid;place-items:center;background:#140f24;color:#faf7ff;font:16px system-ui} main{width:min(100%,560px);padding:clamp(20px,5vw,40px);border:1px solid #674d89;border-radius:24px;background:#241936} h1{line-height:1.05} small,#amount{color:#e0ff77;font-weight:800} #amount{font-size:2rem} dt{margin:14px 0 4px;font-weight:700} dd{margin:0;display:flex;gap:8px;flex-wrap:wrap} input{min-width:0;flex:1 1 180px;color:white;background:#140f24;border:1px solid #8066a2;padding:12px;border-radius:8px;font:inherit} button{background:#e0ff77;color:#151020;padding:11px 14px;border:0;border-radius:8px;font:inherit;font-weight:700;cursor:pointer} p{line-height:1.5}';
+  page.head.append(viewport, style);
+  page.body.innerHTML = '<main><p>Generando tu pago SPEI…</p></main>';
+  return tab;
+}
+
 function attach(form, output, kind, option, onPaid) {
   const button = form.querySelector('button');
   let charge;
@@ -125,9 +177,11 @@ function attach(form, output, kind, option, onPaid) {
   form.onsubmit = async event => {
     event.preventDefault();
     if (charge) return check();
+    const tab = openPaymentTab();
     button.disabled = true;
     try {
       charge = await request({ action: 'create', kind, option: option(), name: form.elements.name.value, email: form.elements.email.value });
+      if (tab && !tab.closed) paymentTab(tab, charge);
       details = ['Importe: $' + charge.amount + ' MXN', 'CLABE: ' + charge.clabe,
         charge.bank && 'Banco: ' + charge.bank, charge.beneficiary && 'Beneficiario: ' + charge.beneficiary,
         charge.reference && 'Referencia: ' + charge.reference].filter(Boolean).join(' · ');
@@ -137,6 +191,7 @@ function attach(form, output, kind, option, onPaid) {
       if (kind === 'package') for (const pack of packs) pack.disabled = true;
       await check();
     } catch (error) {
+      if (tab && !tab.closed) tab.document.querySelector('main').textContent = error.message;
       output.textContent = error.message;
       button.disabled = false;
     }
