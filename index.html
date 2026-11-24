@@ -21,9 +21,9 @@
 <button class="pack" data-count="1" data-price="60" aria-pressed="true">1 raspadito<strong>$60 MXN</strong></button>
 <button class="pack" data-count="3" data-price="120" aria-pressed="false">3 raspaditos<strong>$120 MXN</strong></button>
 <button class="pack" data-count="5" data-price="200" aria-pressed="false">5 raspaditos<strong>$200 MXN</strong></button>
-</div><p id="total">Total de ejemplo: $60 MXN</p><button class="action" id="activate">Simular pago SPEI</button></section>
+</div><p id="total">Total de ejemplo: $60 MXN</p><form id="buyer"><p><label>Nombre completo <input name="name" required autocomplete="name"></label></p><p><label>Correo electrónico <input name="email" type="email" required autocomplete="email"></label></p><p>Tu paquete incluye un regalo sorpresa. Para recibirlo, el envío se paga por separado: Mexpost $100 MXN o FedEx $120 MXN.</p><button class="action" id="activate">Simular pago SPEI</button></form></section>
 <section id="play" hidden><h2 id="play-title" tabindex="-1">Tus raspaditos</h2><p>Arrastra el dedo o el cursor sobre cada tarjeta. También puedes usar el botón para revelar el resultado.</p><div class="grid" id="tickets"></div></section>
-</main>
+<section id="delivery" hidden><h2>Solicita el envío de tu regalo</h2><form id="shipping"><p><label>Nombre completo <input name="name" required></label></p><p><label>Correo electrónico <input name="email" type="email" required></label></p><p><label>Calle y número <input required autocomplete="street-address"></label></p><p><label>Colonia <input required></label> <label>Código postal <input required pattern="[0-9]{5}" autocomplete="postal-code"></label></p><p><label>Municipio o alcaldía <input required></label> <label>Estado <input required></label></p><p><label>Transportista <select required><option value="">Selecciona</option><option>Mexpost · $100 MXN · 4 a 8 días hábiles</option><option>FedEx · $120 MXN · 2 a 4 días hábiles</option></select></label></p><button class="action">Simular pago del envío</button><p id="shipping-result" role="status"></p></form></section></main>
 <footer>Demostración sin cobros ni premios reales. Los resultados son simulados.</footer>
 <script>
 const packs = [...document.querySelectorAll('.pack')];
@@ -36,7 +36,6 @@ for (const pack of packs) {
   };
 }
 
-const outcomes = ['Sin premio', '$1,000 MXN', '$1,500 MXN', 'PlayStation 5 con GTA 6', 'iPhone 18 Pro Max'];
 function createTicket(number) {
   const ticket = document.createElement('article');
   ticket.className = 'ticket';
@@ -46,7 +45,8 @@ function createTicket(number) {
   const result = ticket.querySelector('b');
   const button = ticket.querySelector('button');
   const context = canvas.getContext('2d');
-  const outcome = outcomes[Math.floor(Math.random() * outcomes.length)];
+  const count = Number(selected.dataset.count);
+  const outcome = number === count ? (count === 5 ? 'iPhone 18 Pro Max' : 'PlayStation 5') : 'Sin premio';
   context.fillStyle = '#7258a2';
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = '#fff';
@@ -59,6 +59,7 @@ function createTicket(number) {
     result.hidden = false;
     result.textContent = outcome;
     button.disabled = true;
+    if (number === count) document.querySelector('#delivery').hidden = false;
   }
 
   function scratch(event) {
@@ -88,12 +89,22 @@ function createTicket(number) {
   return ticket;
 }
 
-document.querySelector('#activate').onclick = () => {
+document.querySelector('#buyer').onsubmit = event => {
+  event.preventDefault();
+  const shipping = document.querySelector('#shipping');
+  for (const field of ['name', 'email']) shipping.elements[field].value = event.currentTarget.elements[field].value;
+  for (const pack of packs) pack.disabled = true;
+  document.querySelector('#activate').disabled = true;
   const tickets = document.querySelector('#tickets');
   const count = Number(selected.dataset.count);
   tickets.replaceChildren(...Array.from({length: count}, (_, index) => createTicket(index + 1)));
   document.querySelector('#play').hidden = false;
   document.querySelector('#play-title').focus();
+};
+document.querySelector('#shipping').onsubmit = event => {
+  event.preventDefault();
+  document.querySelector('#shipping-result').textContent = 'Pago de envío simulado y confirmado.';
+  event.submitter.disabled = true;
 };
 </script>
 </html>
