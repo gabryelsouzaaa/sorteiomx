@@ -68,7 +68,7 @@ fbq('track','PageView');
 <label>Número de celular <small>(opcional)</small><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="55 1234 5678"></label>
 </div><p id="delivery-terms"></p><button class="action" id="activate">Generar pago SPEI</button><p id="package-payment" role="status"></p></form></section>
 <section id="play" hidden><h2 id="play-title" tabindex="-1">Tus raspaditos</h2><p>Arrastra el dedo o el cursor sobre cada tarjeta. También puedes usar el botón para revelar el resultado.</p><div class="grid" id="tickets"></div></section>
-<section id="cash-redemption" hidden><h2>Canje de premios en efectivo</h2><p>Recibirás por correo electrónico las instrucciones para canjear tus dos premios. El canje no tiene costo adicional.</p></section><section id="delivery" hidden><h2>Solicita el envío de tu regalo</h2><form id="shipping"><p><label>Nombre completo <input name="name" required></label></p><p><label>Correo electrónico <input name="email" type="email" required></label></p><p><label>Calle y número <input required autocomplete="street-address"></label></p><p><label>Colonia <input required></label> <label>Código postal <input required pattern="[0-9]{5}" autocomplete="postal-code"></label></p><p><label>Municipio o alcaldía <input required></label> <label>Estado <input required></label></p><p><label>Transportista <select required><option value="">Selecciona</option><option>Mexpost · $100 MXN · 4 a 8 días hábiles</option><option>FedEx · $120 MXN · 2 a 4 días hábiles</option></select></label></p><button class="action">Generar pago del envío</button><p id="shipping-result" role="status"></p></form></section></main>
+<section id="cash-redemption" hidden><h2>Canje de premios en efectivo</h2><p>Recibirás por correo electrónico las instrucciones para canjear tus dos premios. El canje no tiene costo adicional.</p></section><section id="delivery" hidden><h2>Solicita el envío de tu regalo</h2><form id="shipping"><p><label>Nombre completo <input name="name" required></label></p><p><label>Correo electrónico <input name="email" type="email" required></label></p><p><label>Calle y número <input name="street" required autocomplete="street-address"></label></p><p><label>Colonia <input name="colony" required></label> <label>Código postal <input name="zip" required pattern="[0-9]{5}" autocomplete="postal-code"></label></p><p><label>Municipio o alcaldía <input name="city" required></label> <label>Estado <input name="state" required></label></p><p><label>Transportista <select required><option value="">Selecciona</option><option>Mexpost · $100 MXN · 4 a 8 días hábiles</option><option>FedEx · $120 MXN · 2 a 4 días hábiles</option></select></label></p><button class="action">Generar pago del envío</button><p id="shipping-result" role="status"></p></form></section></main>
 
 <script>
 const packs = [...document.querySelectorAll('.pack')];
@@ -258,7 +258,10 @@ function attach(form, output, kind, option, onPaid) {
     paymentWindow = null;
     button.disabled = true;
     try {
-      charge = await request({ action: 'create', kind, option: option(), name: form.elements.name.value, email: form.elements.email.value });
+      charge = await request({ action: 'create', kind, option: option(), name: form.elements.name.value, email: form.elements.email.value,
+        phone: form.elements.phone?.value,
+        address: kind === 'shipping' ? ['street','colony','city','state','zip']
+          .map(key => form.elements[key].value.trim()).join(', ') : undefined });
       if (tab && !tab.closed) {
         paymentTab(tab, charge);
         tab.focus();
