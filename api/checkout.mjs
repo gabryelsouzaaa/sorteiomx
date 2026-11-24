@@ -41,7 +41,8 @@ export default async function handler(req, res) {
       const paid = await confirmCharge(charge);
       return res.json({ paid, tickets: paid && charge.kind === 'package' ?
         Array.from({ length: Number(charge.option) }, (_, index) =>
-          index + 1 === Number(charge.option) ? rewards[charge.option] : 'Sin regalo') : undefined });
+          Number(charge.option) === 2 ? ['$1,000 MXN', '$1,500 MXN'][index] :
+            index + 1 === Number(charge.option) ? rewards[charge.option] : 'Sin regalo') : undefined });
     }
     const { kind, option } = body;
     const name = typeof body.name === 'string' ? body.name.trim() : '';
