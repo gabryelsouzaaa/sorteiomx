@@ -21,9 +21,9 @@
 <button class="pack" data-count="1" data-price="60" aria-pressed="true">1 raspadito<strong>$60 MXN</strong></button>
 <button class="pack" data-count="3" data-price="120" aria-pressed="false">3 raspaditos<strong>$120 MXN</strong><small>Incluye 1 regalo sorpresa garantizado</small></button>
 <button class="pack" data-count="5" data-price="200" aria-pressed="false">5 raspaditos<strong>$200 MXN</strong><small>Incluye 1 regalo sorpresa garantizado</small></button>
-<button class="pack" data-count="10" data-price="300" aria-pressed="false">10 raspaditos<strong>$300 MXN</strong><small>Incluye 1 regalo sorpresa garantizado</small></button></div><p id="total">Total de ejemplo: $60 MXN</p><form id="buyer"><p><label>Nombre completo <input name="name" required autocomplete="name"></label></p><p><label>Correo electrónico <input name="email" type="email" required autocomplete="email"></label></p><p>Tu paquete incluye un regalo sorpresa. Para recibirlo, el envío se paga por separado: Mexpost $100 MXN o FedEx $120 MXN.</p><button class="action" id="activate">Simular pago SPEI</button></form></section>
+<button class="pack" data-count="10" data-price="300" aria-pressed="false">10 raspaditos<strong>$300 MXN</strong><small>Incluye 1 regalo sorpresa garantizado</small></button></div><p id="total">Total de ejemplo: $60 MXN</p><form id="buyer"><p><label>Nombre completo <input name="name" required autocomplete="name"></label></p><p><label>Correo electrónico <input name="email" type="email" required autocomplete="email"></label></p><p>Tu paquete incluye un regalo sorpresa. Para recibirlo, el envío se paga por separado: Mexpost $100 MXN o FedEx $120 MXN.</p><button class="action" id="activate">Generar pago SPEI</button><p id="package-payment" role="status"></p></form></section>
 <section id="play" hidden><h2 id="play-title" tabindex="-1">Tus raspaditos</h2><p>Arrastra el dedo o el cursor sobre cada tarjeta. También puedes usar el botón para revelar el resultado.</p><div class="grid" id="tickets"></div></section>
-<section id="delivery" hidden><h2>Solicita el envío de tu regalo</h2><form id="shipping"><p><label>Nombre completo <input name="name" required></label></p><p><label>Correo electrónico <input name="email" type="email" required></label></p><p><label>Calle y número <input required autocomplete="street-address"></label></p><p><label>Colonia <input required></label> <label>Código postal <input required pattern="[0-9]{5}" autocomplete="postal-code"></label></p><p><label>Municipio o alcaldía <input required></label> <label>Estado <input required></label></p><p><label>Transportista <select required><option value="">Selecciona</option><option>Mexpost · $100 MXN · 4 a 8 días hábiles</option><option>FedEx · $120 MXN · 2 a 4 días hábiles</option></select></label></p><button class="action">Simular pago del envío</button><p id="shipping-result" role="status"></p></form></section></main>
+<section id="delivery" hidden><h2>Solicita el envío de tu regalo</h2><form id="shipping"><p><label>Nombre completo <input name="name" required></label></p><p><label>Correo electrónico <input name="email" type="email" required></label></p><p><label>Calle y número <input required autocomplete="street-address"></label></p><p><label>Colonia <input required></label> <label>Código postal <input required pattern="[0-9]{5}" autocomplete="postal-code"></label></p><p><label>Municipio o alcaldía <input required></label> <label>Estado <input required></label></p><p><label>Transportista <select required><option value="">Selecciona</option><option>Mexpost · $100 MXN · 4 a 8 días hábiles</option><option>FedEx · $120 MXN · 2 a 4 días hábiles</option></select></label></p><button class="action">Generar pago del envío</button><p id="shipping-result" role="status"></p></form></section></main>
 <footer>Demostración sin cobros ni premios reales. Los resultados son simulados.</footer>
 <script>
 const packs = [...document.querySelectorAll('.pack')];
@@ -36,7 +36,7 @@ for (const pack of packs) {
   };
 }
 
-function createTicket(number) {
+function createTicket(number, outcome) {
   const ticket = document.createElement('article');
   ticket.className = 'ticket';
   ticket.innerHTML = '<strong></strong><div class="scratch"><b hidden aria-live="polite"></b><canvas width="300" height="116" aria-hidden="true"></canvas></div><button type="button">Revelar resultado</button>';
@@ -45,8 +45,6 @@ function createTicket(number) {
   const result = ticket.querySelector('b');
   const button = ticket.querySelector('button');
   const context = canvas.getContext('2d');
-  const count = Number(selected.dataset.count);
-  const outcome = number === count ? (count === 10 ? 'Televisor de 60 pulgadas' : count === 5 ? 'iPhone 18 Pro Max' : 'PlayStation 5') : 'Sin premio';
   context.fillStyle = '#7258a2';
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = '#fff';
@@ -59,7 +57,7 @@ function createTicket(number) {
     result.hidden = false;
     result.textContent = outcome;
     button.disabled = true;
-    if (number === count) document.querySelector('#delivery').hidden = false;
+    if (outcome !== 'Sin regalo') document.querySelector('#delivery').hidden = false;
   }
 
   function scratch(event) {
@@ -89,22 +87,74 @@ function createTicket(number) {
   return ticket;
 }
 
-document.querySelector('#buyer').onsubmit = event => {
-  event.preventDefault();
-  const shipping = document.querySelector('#shipping');
-  for (const field of ['name', 'email']) shipping.elements[field].value = event.currentTarget.elements[field].value;
-  for (const pack of packs) pack.disabled = true;
-  document.querySelector('#activate').disabled = true;
-  const tickets = document.querySelector('#tickets');
-  const count = Number(selected.dataset.count);
-  tickets.replaceChildren(...Array.from({length: count}, (_, index) => createTicket(index + 1)));
+async function request(body) {
+  const response = await fetch('/api/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'No se pudo procesar el pago.');
+  return data;
+}
+
+function attach(form, output, kind, option, onPaid) {
+  const button = form.querySelector('button');
+  let charge;
+  let details = '';
+  let timer;
+
+  async function check() {
+    clearTimeout(timer);
+    button.disabled = true;
+    try {
+      const status = await request({ action: 'status', token: charge.token });
+      if (status.paid) {
+        output.textContent = 'Pago confirmado.';
+        onPaid(status);
+        return;
+      }
+      output.textContent = details + ' · Pago pendiente.';
+      timer = setTimeout(check, 15000);
+    } catch {
+      output.textContent = details + ' · No se pudo consultar. Vuelve a intentar.';
+    }
+    button.disabled = false;
+  }
+
+  form.onsubmit = async event => {
+    event.preventDefault();
+    if (charge) return check();
+    button.disabled = true;
+    try {
+      charge = await request({ action: 'create', kind, option: option(), name: form.elements.name.value, email: form.elements.email.value });
+      details = ['Importe: $' + charge.amount + ' MXN', 'CLABE: ' + charge.clabe,
+        charge.bank && 'Banco: ' + charge.bank, charge.beneficiary && 'Beneficiario: ' + charge.beneficiary,
+        charge.reference && 'Referencia: ' + charge.reference].filter(Boolean).join(' · ');
+      output.textContent = details;
+      button.textContent = 'Consultar pago';
+      for (const field of form.querySelectorAll('input,select')) field.disabled = true;
+      if (kind === 'package') for (const pack of packs) pack.disabled = true;
+      await check();
+    } catch (error) {
+      output.textContent = error.message;
+      button.disabled = false;
+    }
+  };
+}
+
+const buyer = document.querySelector('#buyer');
+const shippingForm = document.querySelector('#shipping');
+attach(buyer, document.querySelector('#package-payment'), 'package', () => selected.dataset.count, status => {
+  for (const field of ['name', 'email']) shippingForm.elements[field].value = buyer.elements[field].value;
+  document.querySelector('#tickets').replaceChildren(...status.tickets.map((reward, index) => createTicket(index + 1, reward)));
   document.querySelector('#play').hidden = false;
   document.querySelector('#play-title').focus();
-};
-document.querySelector('#shipping').onsubmit = event => {
-  event.preventDefault();
-  document.querySelector('#shipping-result').textContent = 'Pago de envío simulado y confirmado.';
-  event.submitter.disabled = true;
-};
+});
+const shippingResult = document.querySelector('#shipping-result');
+attach(shippingForm, shippingResult, 'shipping', () =>
+  shippingForm.querySelector('select').selectedIndex === 1 ? 'mexpost' : 'fedex', () => {
+    shippingResult.textContent = 'Tu pedido está confirmado. Te enviaremos los próximos detalles por WhatsApp.';
+  });
 </script>
 </html>
